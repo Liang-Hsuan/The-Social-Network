@@ -1,17 +1,30 @@
 from cmd import Cmd
 
+import MySQLdb
+import json
 import pdb
 
 class SocialNetworkPrompt(Cmd):
 
+  db = None
   login = False
 
   def do_login(self, input):
+    with open('secret.json', 'r') as file:
+      data = file.read()
+
+    secret = json.loads(data)
+    db_connector = MySQLdb.connect(secret['host'], secret['user'], secret['password'], secret['database'])
+    self.db = db_connector.cursor()
+
     self.login = True
-    print("logged in successfully")
+    print('logged in successfully')
 
   def do_logout(self, input):
-    print("logging out...")
+    if self.db is not None:
+      self.db.close()
+
+    print('logging out...')
     return True
 
   def help_logout(self):
@@ -19,11 +32,6 @@ class SocialNetworkPrompt(Cmd):
 
   def default(self, input):
     return self.do_help('')
-
-  def precmd(self, line):
-    pdb.set_trace()
-    if not self.login:
-      print('not login yet')
 
   do_EOF = do_logout
   help_EOF = help_logout
