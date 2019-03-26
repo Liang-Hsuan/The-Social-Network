@@ -5,9 +5,7 @@ CREATE TABLE User(
   userName VARCHAR(20) NOT NULL,
   firstName VARCHAR(100) DEFAULT NULL,
   lastName VARCHAR(100) DEFAULT NULL,
-  birthDate INT(11) DEFAULT NULL,
-  birthMonth INT(11) DEFAULT NULL,
-  birthYear INT(11) DEFAULT NULL,
+  birthDay DATE DEFAULT NULL,
   gender CHAR(1) DEFAULT NULL,
   primary key (userName)
 );
@@ -20,7 +18,7 @@ CREATE TABLE Follow(
   foreign key (follower) references User(userName)
 );
 
-CREATE TABLE UserGroup(
+CREATE TABLE Grouping(
   groupID INT NOT NULL,
   groupName VARCHAR(100) DEFAULT NULL,
   primary key (groupID)
@@ -36,13 +34,19 @@ CREATE TABLE GroupMember(
 
 CREATE TABLE Topic(
   topicName VARCHAR(100) NOT NULL,
-  parentTopicName VARCHAR(100) DEFAULT NULL,
   primary key (topicName)
 );
 
+CREATE TABLE ParentTopic(
+  topicName VARCHAR(100) NOT NULL,
+  parentTopicName VARCHAR(100),
+  primary key (topicName),
+  foreign key (topicName) references Topic(topicName),
+  foreign key (parentTopicName) references Topic(topicName)
+)
+
 CREATE TABLE Post(
   postID INT NOT NULL,
-  authorUserName VARCHAR(20) NOT NULL,
   postText TEXT,
   postLinks VARCHAR(200) DEFAULT NULL,
   postImages VARCHAR(200) DEFAULT NULL,
@@ -60,6 +64,14 @@ CREATE TABLE PostTagTopic(
   primary key (postID, topicName),
   foreign key (postID) references Post(postID),
   foreign key (topicName) references Topic(topicName)
+);
+
+CREATE TABLE Posting(
+  userName VARCHAR(20) NOT NULL,
+  postID INT NOT NULL,
+  primary key (userName, postID),
+  foreign key (userName) references User(userName),
+  foreign key (postID) references Post(postID)
 );
 
 CREATE TABLE UserFollowTopic(
