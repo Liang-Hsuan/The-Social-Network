@@ -1,27 +1,59 @@
 from cmd import Cmd
 
 import MySQLdb
+import shlex
 import json
 import pdb
 
 class SocialNetworkPrompt(Cmd):
 
   db = None
+  db_cursor = None
   login = False
   username = ''
 
   def do_create(self, input):
-    
+    args = shlex.split(input)
+
+    if len(args) != 4:
+      print("number or arguments should be 4, only %d given" % len(args))
+      return
+
+    self.db_cursor.execute("SELECT * FROM User WHERE userName = \"%s\"" % args[0])
+
+    if self.db_cursor.rowcount != 0:
+      print("username %s has already been created, try another one" % args[0])
+      return
+
+    try:
+      names = args[1].split(' ')
+      birthday = args[2].split('-')
+
+      self.db_cursor.execute("INSERT INTO User(userName, firstName, lastName, birthDate, birthMonth, birthYear, gender)" \
+        "VALUES ('%s', '%s', '%s', %s, %s, %s, '%s')" % (args[0], names[0], names[1], birthday[2], birthday[1], birthday[0], args[3]))
+      self.db.commit()
+    except (MySQLdb.Error, MySQLdb.Warning) as e:
+      self.db.rollback()
+      print("error while creating user: %s, please try again" % e)
+      return
+
+    self.username = args[0]
+    self.login = True
+
+    print("%s user created successfully" % args[0])
+
+  def help_create(self):
+    print('create [username] [name ("firstName lastName")] [birthday (YYYY-MM-DD)] [gender (m/f)]')
 
   def do_login(self, input):
     if self.login:
       print('Already logged in, please logout first')
       return
 
-    self.db.execute("SELECT * FROM User WHERE userName = \"%s\"" % input)
-    row = self.db.fetchone()
+    self.db_cursor.execute("SELECT * FROM User WHERE userName = \"%s\"" % input)
+    row = self.db_cursor.fetchone()
 
-    if self.db.rowcount == 0:
+    if self.db_cursor.rowcount == 0:
       print('no username found')
       return
 
@@ -30,8 +62,11 @@ class SocialNetworkPrompt(Cmd):
 
     print('logged in successfully')
 
+  def help_login(self):
+    print('login [username]')
+
   def do_logout(self, input):
-    self.db.close()
+    self.db_cursor.close()
     print('logging out...')
 
     return True
@@ -44,9 +79,8 @@ class SocialNetworkPrompt(Cmd):
       data = file.read()
 
     secret = json.loads(data)
-    db_connector = MySQLdb.connect(secret['host'], secret['user'], secret['password'], secret['database'])
-
-    self.db = db_connector.cursor()
+    self.db = MySQLdb.connect(secret['host'], secret['user'], secret['password'], secret['database'])
+    self.db_cursor = self.db.cursor()
 
   do_EOF = do_logout
   help_EOF = help_logout
