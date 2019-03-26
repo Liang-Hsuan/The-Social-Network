@@ -1,3 +1,6 @@
+CREATE DATABASE IF NOT EXISTS TheSocialNetwork;
+USE TheSocialNetwork;
+
 CREATE TABLE User(
   userName VARCHAR(20) NOT NULL,
   firstName VARCHAR(100) DEFAULT NULL,
@@ -12,12 +15,12 @@ CREATE TABLE User(
 CREATE TABLE Follow(
   followee VARCHAR(20) NOT NULL,
   follower VARCHAR(20) NOT NULL,
-  primary key (followee, follower)
+  primary key (followee, follower),
   foreign key (followee) references User(userName),
   foreign key (follower) references User(userName)
 );
 
-CREATE TABLE Group(
+CREATE TABLE UserGroup(
   groupID INT NOT NULL,
   groupName VARCHAR(100) DEFAULT NULL,
   primary key (groupID)
@@ -25,10 +28,10 @@ CREATE TABLE Group(
 
 CREATE TABLE GroupMember(
   userName VARCHAR(20) NOT NULL,
-  groupID INT DEFAULT NULL,
+  groupID INT NOT NULL,
   primary key (userName, groupID),
   foreign key (userName) references User(userName),
-  foreign key (groupID) references Group(groupID)
+  foreign key (groupID) references UserGroup(groupID)
 );
 
 CREATE TABLE Topic(
@@ -53,7 +56,7 @@ CREATE TABLE Post(
 
 CREATE TABLE PostTagTopic(
   postID INT NOT NULL,
-  topicName VARCHAR(100) DEFAULT NULL,
+  topicName VARCHAR(100) NOT NULL,
   primary key (postID, topicName),
   foreign key (postID) references Post(postID),
   foreign key (topicName) references Topic(topicName)
@@ -61,15 +64,15 @@ CREATE TABLE PostTagTopic(
 
 CREATE TABLE UserFollowTopic(
   userName VARCHAR(20) NOT NULL,
-  topicName VARCHAR(100) DEFAULT NULL,
+  topicName VARCHAR(100) NOT NULL,
   primary key (userName, topicName),
   foreign key (userName) references User(userName),
   foreign key (topicName) references Topic(topicName)
 );
 
-CREATE TABLE Read(
+CREATE TABLE UserRead(
   userName VARCHAR(20) NOT NULL,
-  postID INT DEFAULT NULL,
+  postID INT NOT NULL,
   primary key (userName, postID),
   foreign key (userName) references User(userName),
   foreign key (postID) references Post(postID)
