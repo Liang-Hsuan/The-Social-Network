@@ -16,7 +16,7 @@ class SocialNetworkPrompt(Cmd):
     args = shlex.split(input)
 
     if len(args) != 4:
-      print("number or arguments should be 4, only %d given" % len(args))
+      print("number or arguments should be 4, %d given" % len(args))
       return
 
     self.db_cursor.execute("SELECT * FROM User WHERE userName = \"%s\"" % args[0])
@@ -27,10 +27,9 @@ class SocialNetworkPrompt(Cmd):
 
     try:
       names = args[1].split(' ')
-      birthday = args[2].split('-')
 
-      self.db_cursor.execute("INSERT INTO User(userName, firstName, lastName, birthDate, birthMonth, birthYear, gender)" \
-        "VALUES ('%s', '%s', '%s', %s, %s, %s, '%s')" % (args[0], names[0], names[1], birthday[2], birthday[1], birthday[0], args[3]))
+      self.db_cursor.execute("INSERT INTO User(userName, firstName, lastName, birthDay, gender)" \
+        "VALUES ('%s', '%s', '%s', '%s', '%s')" % (args[0], names[0], names[1], args[2], args[3]))
       self.db.commit()
     except (MySQLdb.Error, MySQLdb.Warning) as e:
       self.db.rollback()
@@ -64,6 +63,56 @@ class SocialNetworkPrompt(Cmd):
 
   def help_login(self):
     print('login [username]')
+
+  def do_follow(self, input):
+    if not self.login:
+      print('please log in first')
+      return
+
+    args = shlex.split(input)
+
+    if len(args) != 2:
+      print("number or arguments should be 2, %d given" % len(args))
+      return
+
+    if args[0] == '-u':
+      if self.username == args[1]:
+        print('cannot follow yourself')
+        return
+
+      self.db_cursor.execute("SELECT * FROM User WHERE userName = '%s'" % args[1])
+
+      if self.db_cursor.rowcount == 0:
+        print("username %s does not exist" % args[1])
+        return
+
+      try:
+        self.db_cursor.execute("INSERT INTO Follow(followee, follower) VALUES ('%s', '%s')" % (args[1], self.username))
+        self.db.commit()
+      except (MySQLdb.Error, MySQLdb.Warning) as e:
+        self.db.rollback()
+        print("error while following user: %s, please try again" % e)
+        return
+
+      print("follow user %s succesfully" % args[1])
+    elif args[0] == '-t':
+      self.db_cursor.execute("SELECT topicName FROM Topic WHERE topicName = '%s'" % args[1])
+
+      if self.db_cursor.rowcount == 0:
+        print("topic %s does not exist" % args[1])
+        return
+
+      try:
+        self.db_cursor.execute("INSERT INTO UserFollowTopic(userName, topicName) VALUES ('%s', '%s')" % (self.username, args[1]))
+        self.db.commit()
+      except (MySQLdb.Error, MySQLdb.Warning) as e:
+        self.db.rollback()
+        print("error while following topic: %s, please try again" % e)
+        return
+
+      print("follow topic %s succesfully" % args[1])
+    else:
+      print("flag %s not available" % args[0])
 
   def do_logout(self, input):
     self.db_cursor.close()

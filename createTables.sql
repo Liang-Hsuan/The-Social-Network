@@ -29,7 +29,7 @@ CREATE TABLE GroupMember(
   groupID INT NOT NULL,
   primary key (userName, groupID),
   foreign key (userName) references User(userName),
-  foreign key (groupID) references UserGroup(groupID)
+  foreign key (groupID) references Grouping(groupID)
 );
 
 CREATE TABLE Topic(
@@ -43,7 +43,7 @@ CREATE TABLE ParentTopic(
   primary key (topicName),
   foreign key (topicName) references Topic(topicName),
   foreign key (parentTopicName) references Topic(topicName)
-)
+);
 
 CREATE TABLE Post(
   postID INT NOT NULL,
@@ -54,8 +54,7 @@ CREATE TABLE Post(
   disliks INT DEFAULT '0',
   parentPostID INT DEFAULT NULL,
   createTime DATE NOT NULL,
-  primary key (postID),
-  foreign key (authorUserName) references User(userName)
+  primary key (postID)
 );
 
 CREATE TABLE PostTagTopic(
