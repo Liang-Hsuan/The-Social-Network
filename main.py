@@ -12,6 +12,28 @@ class SocialNetworkPrompt(Cmd):
   login = False
   username = ''
 
+  def preloop(self):
+    with open('secret.json', 'r') as file:
+      data = file.read()
+
+    secret = json.loads(data)
+    self.db = MySQLdb.connect(secret['host'], secret['user'], secret['password'], secret['database'])
+    self.db_cursor = self.db.cursor()
+
+  def postloop(self):
+    if self.db_cursor is not None:
+      self.db_cursor.close()
+
+  def precmd(self, line):
+    command = shlex.split(line)[0]
+
+    if command not in ['login', 'create', 'logout', 'help']:
+      if not self.login:
+        print('please login first')
+        return 'help login'
+
+    return line
+
   def do_create(self, input):
     args = shlex.split(input)
 
@@ -19,14 +41,14 @@ class SocialNetworkPrompt(Cmd):
       print("number or arguments should be 4, %d given" % len(args))
       return
 
-    self.db_cursor.execute("SELECT * FROM User WHERE userName = \"%s\"" % args[0])
+    self.db_cursor.execute("SELECT * FROM User WHERE userName = '%s'" % args[0])
 
     if self.db_cursor.rowcount != 0:
       print("username %s has already been created, try another one" % args[0])
       return
 
     try:
-      names = args[1].split(' ')
+      names = shlex.split(args[1])
 
       self.db_cursor.execute("INSERT INTO User(userName, firstName, lastName, birthDay, gender)" \
         "VALUES ('%s', '%s', '%s', '%s', '%s')" % (args[0], names[0], names[1], args[2], args[3]))
@@ -44,12 +66,48 @@ class SocialNetworkPrompt(Cmd):
   def help_create(self):
     print('create [username] [name ("firstName lastName")] [birthday (YYYY-MM-DD)] [gender (m/f)]')
 
+  def do_topic(self, input):
+    args = shlex.split(input)
+
+    if not (0 < len(args) < 3):
+      print("number or arguments should be 1 or 2, %d given" % len(args))
+      return
+
+    has_parent_topic = len(args) == 2
+
+    if has_parent_topic:
+      self.db_cursor.execute("SELECT topicName FROM Topic WHERE topicName = '%s'" % args[1])
+
+      if self.db_cursor.rowcount == 0:
+        print("parent topic %s does not exist, please create it first" % args[1])
+        return
+
+    try:
+      self.db_cursor.execute("INSERT INTO Topic(topicName) VALUES ('%s')" % args[0])
+
+      if has_parent_topic:
+        self.db_cursor.execute("INSERT INTO ParentTopic(topicName, parentTopicName) VALUES ('%s', '%s')" % (args[0], args[1]))
+
+      self.db.commit()
+    except (MySQLdb.Error, MySQLdb.Warning) as e:
+      self.db.rollback()
+      print("error while creating topic: %s, please try again" % e)
+      return
+
+    print("%s topic created succesfully" % args[0])
+
+  def help_topic(self):
+    print('topic [topic_name ("" if has space)] [parent_topic_name ("" if has space)]')
+
+  def do_post(self, input):
+    return
+
   def do_login(self, input):
     if self.login:
       print('Already logged in, please logout first')
       return
 
-    self.db_cursor.execute("SELECT * FROM User WHERE userName = \"%s\"" % input)
+    self.db_cursor.execute("SELECT * FROM User WHERE userName = '%s'" % input)
     row = self.db_cursor.fetchone()
 
     if self.db_cursor.rowcount == 0:
@@ -65,10 +123,6 @@ class SocialNetworkPrompt(Cmd):
     print('login [username]')
 
   def do_follow(self, input):
-    if not self.login:
-      print('please log in first')
-      return
-
     args = shlex.split(input)
 
     if len(args) != 2:
@@ -114,22 +168,15 @@ class SocialNetworkPrompt(Cmd):
     else:
       print("flag %s not available" % args[0])
 
-  def do_logout(self, input):
-    self.db_cursor.close()
-    print('logging out...')
+  def help_follow(self):
+    print('follow [-u | -t] [username | topic]')
 
+  def do_logout(self, input):
+    print('logging out...')
     return True
 
   def help_logout(self):
     print('exit the application')
-
-  def preloop(self):
-    with open('secret.json', 'r') as file:
-      data = file.read()
-
-    secret = json.loads(data)
-    self.db = MySQLdb.connect(secret['host'], secret['user'], secret['password'], secret['database'])
-    self.db_cursor = self.db.cursor()
 
   do_EOF = do_logout
   help_EOF = help_logout
