@@ -1,4 +1,5 @@
 from cmd import Cmd
+from datetime import date
 
 import MySQLdb
 import shlex
@@ -100,7 +101,41 @@ class SocialNetworkPrompt(Cmd):
     print('topic [topic_name ("" if has space)] [parent_topic_name ("" if has space)]')
 
   def do_post(self, input):
-    return
+    args = shlex.split(input)
+
+    if not (0 < len(args) < 3):
+      print("number or arguments should be 1 or 2, %d given" % len(args))
+      return
+
+    has_topics = len(args) == 2
+
+    if has_topics:
+      topics = args[1].split(',')
+      query = "SELECT * FROM Topic WHERE topicName IN ({})".format(','.join(['%s'] * len(topics)))
+      self.db_cursor.execute(query, topics)
+
+      if not (self.db_cursor.rowcount == len(topics)):
+        print('topic does not exist')
+        return
+
+    try:
+      self.db_cursor.execute("INSERT INTO Post(postText, createTime) VALUES ('%s', '%s')" % (args[0], str(date.today())))
+
+
+      if has_topics:
+        for topic in topics:
+          self.db_cursor.execute("INSERT INTO PostTagTopic VALUES ((SELECT LAST_INSERT_ID()), '%s')" % topic)
+
+      self.db.commit()
+    except (MySQLdb.Error, MySQLdb.Warning) as e:
+      self.db.rollback()
+      print("error while creating post: %s, please try again" % e)
+      return
+
+    print("post '%s' created successfully" % args[0])
+
+  def help_post(self):
+    print('post [content ("" if has space] [topics (separated by , and "" if has space)]')
 
   def do_login(self, input):
     if self.login:
