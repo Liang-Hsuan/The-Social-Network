@@ -1,5 +1,6 @@
 from cmd import Cmd
 from datetime import date
+from prettytable import PrettyTable
 
 import MySQLdb
 import shlex
@@ -121,7 +122,6 @@ class SocialNetworkPrompt(Cmd):
     try:
       self.db_cursor.execute("INSERT INTO Post(postText, createTime) VALUES ('%s', '%s')" % (args[0], str(date.today())))
 
-
       if has_topics:
         for topic in topics:
           self.db_cursor.execute("INSERT INTO PostTagTopic VALUES ((SELECT LAST_INSERT_ID()), '%s')" % topic)
@@ -205,6 +205,77 @@ class SocialNetworkPrompt(Cmd):
 
   def help_follow(self):
     print('follow [-u | -t] [username | topic]')
+
+  def do_group(self, input):
+    args = shlex.split(input)
+
+    if len(args) != 1:
+      print("number or arguments should be 1, %d given" % len(args))
+      return
+
+    try:
+      self.db_cursor.execute("INSERT INTO Grouping (groupName) VALUES ('%s')" % args[0])
+      self.db.commit()
+    except (MySQLdb.Error, MySQLdb.Warning) as e:
+      self.db.rollback()
+      print("error while creating group: %s, please try again" % e)
+      return
+
+    print("%s group created successfully" % args[0])
+
+  def help_group(self):
+    print('group [groupname ("" if has space)]\ncreate a group with the given group name')
+
+  def do_join(self, input):
+    args = shlex.split(input)
+
+    if len(args) != 1:
+      print("number or arguments should be 1, %d given" % len(args))
+      return
+
+    self.db_cursor.execute("SELECT groupID FROM Grouping WHERE groupID = %s" % args[0])
+
+    if self.db_cursor.rowcount == 0:
+      print("groupID %s cannot be found" % args[0])
+      return
+
+    try:
+      self.db_cursor.execute("INSERT INTO GroupMember(userName, groupID) VALUES ('%s', %s)" % (self.username, args[0]))
+      self.db.commit()
+    except (MySQLdb.Error, MySQLdb.Warning) as e:
+      self.db.rollback()
+      print("error while joining group: %s, please try again" % e)
+      return
+
+    print("%s joined group successfully" % args[0])
+
+  def help_join(self):
+    print('join [groupID]\njoin to the group with the given group ID')
+
+  def do_list(self, input):
+    args = shlex.split(input)
+
+    if len(args) != 1:
+      print("number or arguments should be 1, %d given" % len(args))
+      return
+
+    if args[0] == '-p':
+      self.db_cursor.execute('SELECT postID, postText, createTime FROM Post ORDER BY createTime DESC')
+      posts = self.db_cursor.fetchall()
+
+      t = PrettyTable(['post id', 'content', 'createTime'])
+      for post in posts:
+        t.add_row(post)
+
+      print(t)
+
+    elif args[0] == '-t':
+      return
+    else:
+      print("flag %s not available" % args[0])
+
+  def help_list(self):
+    print('list [-p | -t | -u | -g]\nlist all the posts or topics or users or groups')
 
   def do_logout(self, input):
     print('logging out...')
