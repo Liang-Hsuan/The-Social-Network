@@ -19,7 +19,7 @@ CREATE TABLE Follow(
 );
 
 CREATE TABLE Grouping(
-  groupID INT NOT NULL,
+  groupID INT NOT NULL AUTO_INCREMENT,
   groupName VARCHAR(100) DEFAULT NULL,
   primary key (groupID)
 );
