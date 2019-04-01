@@ -255,22 +255,57 @@ class SocialNetworkPrompt(Cmd):
   def do_list(self, input):
     args = shlex.split(input)
 
-    if len(args) != 1:
-      print("number or arguments should be 1, %d given" % len(args))
+    if not (0 < len(args) < 3):
+      print("number or arguments should be 1 or 2, %d given" % len(args))
       return
+
+    has_only_followed_flag = (len(args) == 2) and (args[1] == '--followed')
 
     if args[0] == '-p':
       self.db_cursor.execute('SELECT postID, postText, createTime FROM Post ORDER BY createTime DESC')
       posts = self.db_cursor.fetchall()
 
-      t = PrettyTable(['post id', 'content', 'createTime'])
+      t = PrettyTable(['post id', 'content', 'date'])
       for post in posts:
         t.add_row(post)
 
       print(t)
 
     elif args[0] == '-t':
-      return
+      query = ("SELECT topicName, parentTopicName FROM UserFollowTopic LEFT JOIN ParentTopic USING (topicName) where userName = '%s'" % self.username) if has_only_followed_flag \
+        else 'SELECT topicName, parentTopicName FROM Topic LEFT JOIN ParentTopic USING (topicName)'
+      self.db_cursor.execute(query)
+      topics = self.db_cursor.fetchall()
+
+      t = PrettyTable(['Topic', 'Parent Topic'])
+      for topic in topics:
+        t.add_row(topic)
+
+      print(t)
+
+    elif args[0] == '-u':
+      query = ("SELECT followee FROM Follow WHERE follower = '%s'" % self.username) if has_only_followed_flag else 'SELECT userName FROM User'
+      self.db_cursor.execute(query)
+      users = self.db_cursor.fetchall()
+
+      t = PrettyTable(['User Name'])
+      for user in users:
+        t.add_row(user)
+
+      print(t)
+
+    elif args[0] == '-g':
+      query = ("SELECT groupID, groupName FROM Grouping JOIN GroupMember USING (groupID) WHERE userName = '%s'" % self.username) if has_only_followed_flag \
+        else 'SELECT groupID, groupName FROM Grouping'
+      self.db_cursor.execute(query)
+      groups = self.db_cursor.fetchall()
+
+      t = PrettyTable(['Group ID', 'Group Name'])
+      for group in groups:
+        t.add_row(group)
+
+      print(t)
+
     else:
       print("flag %s not available" % args[0])
 
