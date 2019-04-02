@@ -121,6 +121,7 @@ class SocialNetworkPrompt(Cmd):
 
     try:
       self.db_cursor.execute("INSERT INTO Post(postText, createTime) VALUES ('%s', '%s')" % (args[0], str(date.today())))
+      self.db_cursor.execute("INSERT INTO Posting(postID, userName) VALUES ((SELECT LAST_INSERT_ID()), '%s')" % self.username)
 
       if has_topics:
         for topic in topics:
@@ -310,7 +311,55 @@ class SocialNetworkPrompt(Cmd):
       print("flag %s not available" % args[0])
 
   def help_list(self):
-    print('list [-p | -t | -u | -g]\nlist all the posts or topics or users or groups')
+    print('list [-p | -t | -u | -g] [--followed (optional)]\n' \
+      'list all the posts or topics or users or groups\n' \
+      'list all the posts or topics or users or groups followed by the user if --followed flag is provided')
+
+  def do_show(self, input):
+    args = shlex.split(input)
+
+    if len(args) != 2:
+      print("number or arguments should be 2, %d given" % len(args))
+      return
+
+    if args[0] == '-u':
+      self.db_cursor.execute("SELECT * FROM Follow WHERE followee = '%s' and follower = '%s'" % (args[1], self.username))
+
+      if self.db_cursor.rowcount == 0:
+        print("you did not follow user %s" % args[1])
+        return
+
+      self.db_cursor.execute("SELECT Post.postID, Post.postText, Post.createTime FROM Post JOIN Posting ON Post.postID = Posting.postID " \
+        "WHERE Posting.userName = '%s' AND Post.postID NOT IN (SELECT postID FROM UserRead WHERE userName = '%s') ORDER BY createTime DESC" % (args[1], self.username))
+      posts = self.db_cursor.fetchall()
+
+      t = PrettyTable(['post id', 'content', 'date'])
+      for post in posts:
+        t.add_row(post)
+
+      print(t)
+
+    elif args[1] == '-t':
+      self.db_cursor.execute("SELECT * FROM UserFollowTopic WHERE userName = '%s' AND topicName = '%s'" % (self.username, args[1]))
+
+      if self.db_cursor.rowcount == 0:
+        print("you did not follow topic %s" % args[1])
+        return
+
+      self.db_cursor.execute("SELECT Post.postID, Post.postText, Post.createTime FROM Post JOIN PostTagTopic ON Post.postID = PostTagTopic.postID " \
+        "WHERE PostTagTopic.topicName = '%s' AND Post.postID NOT IN (SELECT postID FROM UserRead WHERE userName = '%s') ORDER BY createTime DESC" % (args[1], self.username))
+      posts = self.db_cursor.fetchall()
+
+      t = PrettyTable(['post id', 'content', 'date'])
+      for post in posts:
+        t.add_row(post)
+
+      print(t)
+    else:
+      print("flag %s not available" % args[0])
+
+  def help_show(self):
+    print('show [-u | -t] [username]\nshow all the posts by followed users or topics')
 
   def do_logout(self, input):
     print('logging out...')
