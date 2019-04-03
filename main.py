@@ -6,6 +6,7 @@ import MySQLdb
 import shlex
 import json
 import pdb
+import re
 
 class SocialNetworkPrompt(Cmd):
 
@@ -99,7 +100,8 @@ class SocialNetworkPrompt(Cmd):
     print("%s topic created succesfully" % args[0])
 
   def help_topic(self):
-    print('topic [topic_name ("" if has space)] [parent_topic_name ("" if has space)]')
+    print('topic [topic_name ("" if has space)] [parent_topic_name (optional; "" if has space)]\n' \
+      'create a topic name and its optional parent topic')
 
   def do_post(self, input):
     args = shlex.split(input)
@@ -136,7 +138,109 @@ class SocialNetworkPrompt(Cmd):
     print("post '%s' created successfully" % args[0])
 
   def help_post(self):
-    print('post [content ("" if has space] [topics (separated by , and "" if has space)]')
+    print('post [content ("" if has space] [topics (separated by , and "" if has space)]\n' \
+      'submit a post with given text content and topic(s)')
+
+  def do_reply(self, input):
+    args = shlex.split(input)
+
+    if len(args) != 2:
+      print("number or arguments should be 2, %d given" % len(args))
+      return
+
+    self.db_cursor.execute("SELECT postID FROM Post WHERE postID = '%s'" % args[0])
+
+    if self.db_cursor.rowcount == 0:
+      print("post %s does not exist" % args[0])
+      return
+
+    try:
+      self.db_cursor.execute("INSERT INTO Post(parentPostID, postText, createTime) VALUES ('%s',' %s', '%s')" % (args[0], args[1], str(date.today())))
+      self.db_cursor.execute("INSERT INTO Posting(postID, userName) VALUES ((SELECT LAST_INSERT_ID()), '%s')" % self.username)
+      self.db.commit()
+    except (MySQLdb.Error, MySQLdb.Warning) as e:
+      self.db.rollback()
+      print("error while replying post: %s, please try again" % e)
+      return
+
+    print("reply to post %s with '%s' submitted successfully" % (args[0], args[1]))
+
+  def help_reply(self):
+    print('reply [post_id] [content ("" if has space)]\n' \
+      'reply a response to a post with given post id and content text')
+
+  def do_read(self, input):
+    args = shlex.split(input)
+
+    if len(args) != 1:
+      print("number or arguments should be 1, %d given" % len(args))
+      return
+
+    self.db_cursor.execute("SELECT postID FROM Post WHERE postID = '%s'" % args[0])
+
+    if self.db_cursor.rowcount == 0:
+      print("post %s does not exist" % args[0])
+      return
+
+    self.db_cursor.execute('SELECT postID, postText, likes, disliks, parentPostID, createTime, userName FROM Post INNER JOIN Posting USING (postID) ORDER BY createTime DESC')
+    posts = self.db_cursor.fetchall()
+
+    related_posts = list(filter(lambda x: SocialNetworkPrompt.__is_child(int(args[0]), 4, x[0], 0, posts), posts))
+
+    table_header = ['post id', 'content', 'number of likes', 'number of dislikes', 'reply to post', 'date', 'user']
+
+    SocialNetworkPrompt.__print_response(related_posts, table_header, int(args[0]), 4, 0)
+
+    try:
+      self.db_cursor.execute("INSERT INTO UserRead(userName, postID) VALUES ('%s', %s)" % (self.username, args[0]))
+      self.db.commit()
+    except (MySQLdb.Error, MySQLdb.Warning) as e:
+      self.db.rollback()
+      print("error while reading post: %s, please try again" % e)
+      return
+
+  def help_read(self):
+    print('read [post_id]\n' \
+      'read the details of the post with given post ID')
+
+  @staticmethod
+  def __is_child(parent_id, parent_id_field_index, id, id_field_index, rows, row = None):
+    if row is None:
+      row = filter(lambda x: x[id_field_index] == id, rows)[0]
+      return SocialNetworkPrompt.__is_child(parent_id, parent_id_field_index, id, id_field_index, rows, row)
+
+    if row[parent_id_field_index] is None:
+      return row[id_field_index] == parent_id
+
+    row = filter(lambda x: x[id_field_index] == row[parent_id_field_index], rows)[0]
+    return SocialNetworkPrompt.__is_child(parent_id, parent_id_field_index, id, id_field_index, rows, row)
+
+  @staticmethod
+  def __print_response(posts, table_header, main_post_id, parent_id_field_index, id_field_index, main_post = None, level = 0, done = []):
+    if main_post is None:
+      main_post = filter(lambda x: x[id_field_index] == main_post_id, posts)[0]
+
+      t = PrettyTable(table_header)
+      t.add_row(main_post)
+      print(t)
+
+      posts.remove(main_post)
+
+      return SocialNetworkPrompt.__print_response(posts, table_header, main_post_id, parent_id_field_index, id_field_index, main_post, 1)
+
+    for post in posts:
+      if (post[parent_id_field_index] == main_post_id) and (post[id_field_index] not in done):
+        print('\t' * level + '|\n' + '\t' * level + '|\n')
+
+        t = PrettyTable(table_header)
+        t.add_row(post)
+        table_string = re.sub('\n', '\n' + '\t' * level, str(t))
+        print('\t' * level + table_string)
+
+        done.append(post[id_field_index])
+
+        if len(posts) > 0:
+          SocialNetworkPrompt.__print_response(posts, table_header, post[id_field_index], parent_id_field_index, id_field_index, post, level + 1, done)
 
   def do_login(self, input):
     if self.login:
@@ -263,7 +367,7 @@ class SocialNetworkPrompt(Cmd):
     has_only_followed_flag = (len(args) == 2) and (args[1] == '--followed')
 
     if args[0] == '-p':
-      self.db_cursor.execute('SELECT postID, postText, createTime FROM Post ORDER BY createTime DESC')
+      self.db_cursor.execute('SELECT postID, postText, createTime FROM Post WHERE parentPostID IS NULL ORDER BY createTime DESC')
       posts = self.db_cursor.fetchall()
 
       t = PrettyTable(['post id', 'content', 'date'])
@@ -330,7 +434,8 @@ class SocialNetworkPrompt(Cmd):
         return
 
       self.db_cursor.execute("SELECT Post.postID, Post.postText, Post.createTime FROM Post JOIN Posting ON Post.postID = Posting.postID " \
-        "WHERE Posting.userName = '%s' AND Post.postID NOT IN (SELECT postID FROM UserRead WHERE userName = '%s') ORDER BY createTime DESC" % (args[1], self.username))
+        "WHERE Posting.userName = '%s' AND Post.postID NOT IN (SELECT postID FROM UserRead WHERE userName = '%s') AND Post.parentPostID IS NULL " \
+        "ORDER BY createTime DESC" % (args[1], self.username))
       posts = self.db_cursor.fetchall()
 
       t = PrettyTable(['post id', 'content', 'date'])
@@ -339,7 +444,7 @@ class SocialNetworkPrompt(Cmd):
 
       print(t)
 
-    elif args[1] == '-t':
+    elif args[0] == '-t':
       self.db_cursor.execute("SELECT * FROM UserFollowTopic WHERE userName = '%s' AND topicName = '%s'" % (self.username, args[1]))
 
       if self.db_cursor.rowcount == 0:
@@ -347,7 +452,8 @@ class SocialNetworkPrompt(Cmd):
         return
 
       self.db_cursor.execute("SELECT Post.postID, Post.postText, Post.createTime FROM Post JOIN PostTagTopic ON Post.postID = PostTagTopic.postID " \
-        "WHERE PostTagTopic.topicName = '%s' AND Post.postID NOT IN (SELECT postID FROM UserRead WHERE userName = '%s') ORDER BY createTime DESC" % (args[1], self.username))
+        "WHERE PostTagTopic.topicName = '%s' AND Post.postID NOT IN (SELECT postID FROM UserRead WHERE userName = '%s' AND Post.parentPostID IS NULL) " \
+        "ORDER BY createTime DESC" % (args[1], self.username))
       posts = self.db_cursor.fetchall()
 
       t = PrettyTable(['post id', 'content', 'date'])
