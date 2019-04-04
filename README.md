@@ -2,7 +2,7 @@
 
 A simple social network command line interface tool
 
-TODO: provide exec program and direct reader to jump to usage section if don't want to run the code
+TODO: provide exec program and direct reader to jump to installations section if don't want to run the code
 
 ## Requirements
 
@@ -21,6 +21,15 @@ Use docker as dependencies packaging and run the app on the container. However, 
 
 ``` Bash
 make database host=127.0.0.1 user=myusername password=mypassword 
+# or do it manually
+mysql -h 127.0.0.1 -u myusername -p < createTables.sql
+```
+
+Also, please disable ONLY_FULL_GROUP_BY mode in MySQL:
+
+``` SQL
+-- MySQL console
+mysql > SET GLOBAL sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''));
 ```
 
 - Run `make install` to install all the necessary libraries for the client.
