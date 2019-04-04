@@ -6,5 +6,5 @@ password="$3"
 
 if [[ ! -e secret.json ]]; then
 	touch secret.json
-	echo "{\"host\":\"$host\",\"user\":\"$user\",\"password\":\"$password\",\"database\":\"TheSocialNetwork\"}" >> secret.json
+	echo "{\"host\":\"$host\",\"user\":\"$user\",\"password\":\"$password\",\"database\":\"TheSocialNetwork_G7\"}" >> secret.json
 fi

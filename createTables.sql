@@ -1,5 +1,6 @@
-CREATE DATABASE IF NOT EXISTS TheSocialNetwork;
-USE TheSocialNetwork;
+DROP DATABASE IF EXISTS TheSocialNetwork_G7;
+CREATE DATABASE TheSocialNetwork_G7;
+USE TheSocialNetwork_G7;
 
 CREATE TABLE User(
   userName VARCHAR(20) NOT NULL,

@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 install:
 	pip install MySQL-python
 	pip install PrettyTable
