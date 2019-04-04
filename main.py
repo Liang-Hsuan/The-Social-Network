@@ -169,6 +169,60 @@ class SocialNetworkPrompt(Cmd):
     print('reply [post_id] [content ("" if has space)]\n' \
       'reply a response to a post with given post id and content text')
 
+  def do_like(self, input):
+    args = shlex.split(input)
+
+    if len(args) != 1:
+      print("number or arguments should be 1, %d given" % len(args))
+      return
+
+    self.db_cursor.execute("SELECT postID FROM Post WHERE postID = '%s'" % args[0])
+
+    if self.db_cursor.rowcount == 0:
+      print("post %s does not exist" % args[0])
+      return
+
+    try:
+      self.db_cursor.execute("UPDATE Post SET likes = likes + 1 WHERE postID = %s" % args[0])
+      self.db.commit()
+    except (MySQLdb.Error, MySQLdb.Warning) as e:
+      self.db.rollback()
+      print("error while liking post: %s, please try again" % e)
+      return
+
+    print("like post %s successfully" % args[0])
+
+  def help_like(self):
+    print('like [post_id]\n' \
+      'like a post with the given post ID to increase its likes number')
+
+  def do_dislike(self, input):
+    args = shlex.split(input)
+
+    if len(args) != 1:
+      print("number or arguments should be 1, %d given" % len(args))
+      return
+
+    self.db_cursor.execute("SELECT postID FROM Post WHERE postID = '%s'" % args[0])
+
+    if self.db_cursor.rowcount == 0:
+      print("post %s does not exist" % args[0])
+      return
+
+    try:
+      self.db_cursor.execute("UPDATE Post SET dislikes = dislikes + 1 WHERE postID = %s" % args[0])
+      self.db.commit()
+    except (MySQLdb.Error, MySQLdb.Warning) as e:
+      self.db.rollback()
+      print("error while disliking post: %s, please try again" % e)
+      return
+
+    print("dislike post %s successfully" % args[0])
+
+  def help_dislike(self):
+    print('dislike [post_id]\n' \
+      'dislike a post with the given post ID to increase its dislike number')
+
   def do_read(self, input):
     args = shlex.split(input)
 
@@ -218,7 +272,7 @@ class SocialNetworkPrompt(Cmd):
     return SocialNetworkPrompt.__is_child(parent_id, parent_id_field_index, id, id_field_index, rows, row)
 
   @staticmethod
-  def __print_response(posts, table_header, main_post_id, parent_id_field_index, id_field_index, main_post = None, level = 0, done = []):
+  def __print_response(posts, table_header, main_post_id, parent_id_field_index, id_field_index, main_post = None, level = 0):
     if main_post is None:
       main_post = filter(lambda x: x[id_field_index] == main_post_id, posts)[0]
 
@@ -231,7 +285,7 @@ class SocialNetworkPrompt(Cmd):
       return SocialNetworkPrompt.__print_response(posts, table_header, main_post_id, parent_id_field_index, id_field_index, main_post, 1)
 
     for post in posts:
-      if (post[parent_id_field_index] == main_post_id) and (post[id_field_index] not in done):
+      if post[parent_id_field_index] == main_post_id:
         print('\t' * level + '|\n' + '\t' * level + '| replied from ' + post[-1] + '\n')
 
         t = PrettyTable(table_header)
@@ -239,10 +293,11 @@ class SocialNetworkPrompt(Cmd):
         table_string = re.sub('\n', '\n' + '\t' * level, str(t))
         print('\t' * level + table_string)
 
-        done.append(post[id_field_index])
+        posts_copy = posts[:]
+        posts_copy.remove(post)
 
         if len(posts) > 0:
-          SocialNetworkPrompt.__print_response(posts, table_header, post[id_field_index], parent_id_field_index, id_field_index, post, level + 1, done)
+          SocialNetworkPrompt.__print_response(posts_copy, table_header, post[id_field_index], parent_id_field_index, id_field_index, post, level + 1)
 
   def do_login(self, input):
     if self.login:
@@ -314,6 +369,56 @@ class SocialNetworkPrompt(Cmd):
   def help_follow(self):
     print('follow [-u | -t] [username | topic]\n' \
       'follow a user or a topic')
+
+  def do_unfollow(self, input):
+    args = shlex.split(input)
+
+    if len(args) != 2:
+      print("number or arguments should be 2, %d given" % len(args))
+      return
+
+    if args[0] == '-u':
+      if self.username == args[1]:
+        print('cannot unfollow yourself')
+        return
+
+      self.db_cursor.execute("SELECT * FROM User WHERE userName = '%s'" % args[1])
+
+      if self.db_cursor.rowcount == 0:
+        print("username %s does not exist" % args[1])
+        return
+
+      try:
+        self.db_cursor.execute("DELETE FROM Follow WHERE followee = '%s' AND follower = '%s'" % (args[1], self.username))
+        self.db.commit()
+      except (MySQLdb.Error, MySQLdb.Warning) as e:
+        self.db.rollback()
+        print("error while unfollowing user: %s, please try again" % e)
+        return
+
+      print("unfollow user %s succesfully" % args[1])
+    elif args[0] == '-t':
+      self.db_cursor.execute("SELECT topicName FROM Topic WHERE topicName = '%s'" % args[1])
+
+      if self.db_cursor.rowcount == 0:
+        print("topic %s does not exist" % args[1])
+        return
+
+      try:
+        self.db_cursor.execute("DELETE FROM UserFollowTopic WHERE userName = '%s' AND topicName = '%s'" % (self.username, args[1]))
+        self.db.commit()
+      except (MySQLdb.Error, MySQLdb.Warning) as e:
+        self.db.rollback()
+        print("error while unfollowing topic: %s, please try again" % e)
+        return
+
+      print("unfollow topic %s succesfully" % args[1])
+    else:
+      print("flag %s not available" % args[0])
+
+  def help_unfollow(self):
+    print('unfollow [-u | -t] [username | topic]\n' \
+      'unfollow a user or a topic')
 
   def do_group(self, input):
     args = shlex.split(input)
@@ -414,11 +519,12 @@ class SocialNetworkPrompt(Cmd):
       print(t)
 
     elif args[0] == '-u':
-      query = ("SELECT followee FROM Follow WHERE follower = '%s'" % self.username) if has_only_followed_flag else 'SELECT userName FROM User'
+      query = ("SELECT userName, CONCAT(firstName, ' ', lastName) AS fullName, birthDay, gender FROM User INNER JOIN Follow ON User.userName = Follow.followee WHERE follower = '%s'" % self.username) if has_only_followed_flag \
+        else 'SELECT userName, CONCAT(firstName, \' \', lastName) AS fullName, birthDay, gender FROM User'
       self.db_cursor.execute(query)
       users = self.db_cursor.fetchall()
 
-      t = PrettyTable(['User Name']) # TODO: add full name
+      t = PrettyTable(['User', 'Name', 'Birthday', 'Gender'])
       for user in users:
         t.add_row(user)
 

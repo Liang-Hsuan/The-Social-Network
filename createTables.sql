@@ -51,7 +51,7 @@ CREATE TABLE Post(
   postLinks VARCHAR(200) DEFAULT NULL,
   postImages VARCHAR(200) DEFAULT NULL,
   likes INT DEFAULT '0',
-  disliks INT DEFAULT '0',
+  dislikes INT DEFAULT '0',
   parentPostID INT DEFAULT NULL,
   createTime DATE NOT NULL,
   primary key (postID)
