@@ -67,7 +67,8 @@ class SocialNetworkPrompt(Cmd):
     print("%s user created successfully" % args[0])
 
   def help_create(self):
-    print('create [username] [name ("firstName lastName")] [birthday (YYYY-MM-DD)] [gender (m/f)]')
+    print('create [username] [name ("firstName lastName")] [birthday (YYYY-MM-DD)] [gender (m/f)]\n' \
+      'create a new user with given user name, first name and last name, birthday, and gender')
 
   def do_topic(self, input):
     args = shlex.split(input)
@@ -182,26 +183,29 @@ class SocialNetworkPrompt(Cmd):
       print("post %s does not exist" % args[0])
       return
 
-    self.db_cursor.execute('SELECT postID, postText, likes, disliks, parentPostID, createTime, userName FROM Post INNER JOIN Posting USING (postID) ORDER BY createTime DESC')
+    self.db_cursor.execute('SELECT postID, postText, likes, disliks, parentPostID, createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR \', \') AS topics, userName ' \
+      'FROM Post LEFT JOIN Posting USING (postID) LEFT JOIN PostTagTopic USING(postID) GROUP BY Post.postID ORDER BY createTime DESC')
+
     posts = self.db_cursor.fetchall()
 
     related_posts = list(filter(lambda x: SocialNetworkPrompt.__is_child(int(args[0]), 4, x[0], 0, posts), posts))
-
-    table_header = ['post id', 'content', 'number of likes', 'number of dislikes', 'reply to post', 'date', 'user']
-
+    pdb.set_trace()
+    table_header = ['post id', 'content', 'likes', 'dislikes', 'reply to post', 'date', 'topics', 'user']
     SocialNetworkPrompt.__print_response(related_posts, table_header, int(args[0]), 4, 0)
 
-    try:
-      self.db_cursor.execute("INSERT INTO UserRead(userName, postID) VALUES ('%s', %s)" % (self.username, args[0]))
-      self.db.commit()
-    except (MySQLdb.Error, MySQLdb.Warning) as e:
-      self.db.rollback()
-      print("error while reading post: %s, please try again" % e)
-      return
+    self.db_cursor.execute("SELECT * FROM UserRead WHERE userName = '%s' AND postID = %s" % (self.username, args[0]))
+    if self.db_cursor.rowcount == 0:
+      try:
+        self.db_cursor.execute("INSERT INTO UserRead(userName, postID) VALUES ('%s', %s)" % (self.username, args[0]))
+        self.db.commit()
+      except (MySQLdb.Error, MySQLdb.Warning) as e:
+        self.db.rollback()
+        print("error while reading post: %s, please try again" % e)
+        return
 
   def help_read(self):
     print('read [post_id]\n' \
-      'read the details of the post with given post ID')
+      'read the details of a post with given post ID')
 
   @staticmethod
   def __is_child(parent_id, parent_id_field_index, id, id_field_index, rows, row = None):
@@ -209,7 +213,7 @@ class SocialNetworkPrompt(Cmd):
       row = filter(lambda x: x[id_field_index] == id, rows)[0]
       return SocialNetworkPrompt.__is_child(parent_id, parent_id_field_index, id, id_field_index, rows, row)
 
-    if row[parent_id_field_index] is None:
+    if (row[parent_id_field_index] is None) or (row[id_field_index] == parent_id):
       return row[id_field_index] == parent_id
 
     row = filter(lambda x: x[id_field_index] == row[parent_id_field_index], rows)[0]
@@ -230,7 +234,7 @@ class SocialNetworkPrompt(Cmd):
 
     for post in posts:
       if (post[parent_id_field_index] == main_post_id) and (post[id_field_index] not in done):
-        print('\t' * level + '|\n' + '\t' * level + '|\n')
+        print('\t' * level + '|\n' + '\t' * level + '| replied from ' + post[-1] + '\n')
 
         t = PrettyTable(table_header)
         t.add_row(post)
@@ -260,7 +264,8 @@ class SocialNetworkPrompt(Cmd):
     print('logged in successfully')
 
   def help_login(self):
-    print('login [username]')
+    print('login [username]\n' \
+      'log in to the account of the given user name')
 
   def do_follow(self, input):
     args = shlex.split(input)
@@ -309,7 +314,8 @@ class SocialNetworkPrompt(Cmd):
       print("flag %s not available" % args[0])
 
   def help_follow(self):
-    print('follow [-u | -t] [username | topic]')
+    print('follow [-u | -t] [username | topic]\n' \
+      'follow a user or a topic')
 
   def do_group(self, input):
     args = shlex.split(input)
@@ -329,7 +335,8 @@ class SocialNetworkPrompt(Cmd):
     print("%s group created successfully" % args[0])
 
   def help_group(self):
-    print('group [groupname ("" if has space)]\ncreate a group with the given group name')
+    print('group [groupname ("" if has space)]\n' \
+      'create a group with the given group name')
 
   def do_join(self, input):
     args = shlex.split(input)
@@ -355,7 +362,8 @@ class SocialNetworkPrompt(Cmd):
     print("%s joined group successfully" % args[0])
 
   def help_join(self):
-    print('join [groupID]\njoin to the group with the given group ID')
+    print('join [groupID]\n' \
+      'join to a group with the given group ID')
 
   def do_list(self, input):
     args = shlex.split(input)
@@ -367,10 +375,29 @@ class SocialNetworkPrompt(Cmd):
     has_only_followed_flag = (len(args) == 2) and (args[1] == '--followed')
 
     if args[0] == '-p':
-      self.db_cursor.execute('SELECT postID, postText, createTime FROM Post WHERE parentPostID IS NULL ORDER BY createTime DESC')
-      posts = self.db_cursor.fetchall()
+      query = ("SELECT postID, postText, createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR ', ') AS topics, userName FROM Post " \
+        "INNER JOIN Posting USING (postID) " \
+        "LEFT JOIN PostTagTopic USING (postID) " \
+        "INNER JOIN Follow ON Posting.userName = Follow.followee " \
+        "WHERE parentPostID IS NULL AND Posting.userName IN (SELECT followee FROM Follow WHERE follower = '%s') " \
+        "GROUP BY Post.postID ORDER BY createTime DESC" % self.username) if has_only_followed_flag \
+      else 'SELECT postID, postText, createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR \', \') AS topics, userName FROM Post ' \
+        'INNER JOIN Posting USING (postID) ' \
+        'LEFT JOIN PostTagTopic USING (postID) ' \
+        'WHERE parentPostID IS NULL ' \
+        'GROUP BY Post.postID ORDER BY createTime DESC'
+      self.db_cursor.execute(query)
+      posts = set(self.db_cursor.fetchall())
 
-      t = PrettyTable(['post id', 'content', 'date'])
+      if has_only_followed_flag:
+        self.db_cursor.execute("SELECT topicName FROM UserFollowTopic WHERE userName = '%s'" % self.username)
+        topics_followed = self.db_cursor.fetchall()
+
+        for topic in topics_followed:
+          posts_with_topic = self.__get_posts_from_topic(topic[0])
+          posts.update(posts_with_topic)
+
+      t = PrettyTable(['post id', 'content', 'date', 'topics', 'user'])
       for post in posts:
         t.add_row(post)
 
@@ -393,7 +420,7 @@ class SocialNetworkPrompt(Cmd):
       self.db_cursor.execute(query)
       users = self.db_cursor.fetchall()
 
-      t = PrettyTable(['User Name'])
+      t = PrettyTable(['User Name']) # TODO: add full name
       for user in users:
         t.add_row(user)
 
@@ -433,12 +460,14 @@ class SocialNetworkPrompt(Cmd):
         print("you did not follow user %s" % args[1])
         return
 
-      self.db_cursor.execute("SELECT Post.postID, Post.postText, Post.createTime FROM Post JOIN Posting ON Post.postID = Posting.postID " \
+      self.db_cursor.execute("SELECT Post.postID, Post.postText, Post.createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR ', ') AS topics, userName FROM Post " \
+        "INNER JOIN Posting USING (postID) " \
+        "LEFT JOIN PostTagTopic USING (postID) " \
         "WHERE Posting.userName = '%s' AND Post.postID NOT IN (SELECT postID FROM UserRead WHERE userName = '%s') AND Post.parentPostID IS NULL " \
         "ORDER BY createTime DESC" % (args[1], self.username))
       posts = self.db_cursor.fetchall()
 
-      t = PrettyTable(['post id', 'content', 'date'])
+      t = PrettyTable(['post id', 'content', 'date', 'topics', 'user'])
       for post in posts:
         t.add_row(post)
 
@@ -451,12 +480,9 @@ class SocialNetworkPrompt(Cmd):
         print("you did not follow topic %s" % args[1])
         return
 
-      self.db_cursor.execute("SELECT Post.postID, Post.postText, Post.createTime FROM Post JOIN PostTagTopic ON Post.postID = PostTagTopic.postID " \
-        "WHERE PostTagTopic.topicName = '%s' AND Post.postID NOT IN (SELECT postID FROM UserRead WHERE userName = '%s' AND Post.parentPostID IS NULL) " \
-        "ORDER BY createTime DESC" % (args[1], self.username))
-      posts = self.db_cursor.fetchall()
+      posts = self.__get_posts_from_topic(args[1])
 
-      t = PrettyTable(['post id', 'content', 'date'])
+      t = PrettyTable(['post id', 'content', 'date', 'topics', 'user'])
       for post in posts:
         t.add_row(post)
 
@@ -465,7 +491,31 @@ class SocialNetworkPrompt(Cmd):
       print("flag %s not available" % args[0])
 
   def help_show(self):
-    print('show [-u | -t] [username]\nshow all the posts by followed users or topics')
+    print('show [-u | -t] [username]\n' \
+      'show all the unread posts from followed user or topic')
+
+  def __get_posts_from_topic(self, topic_name):
+    self.db_cursor.execute("SELECT Post.postID, Post.postText, Post.createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR ', ') AS topics, userName FROM Post " \
+        "INNER JOIN Posting USING (postID) " \
+        "LEFT JOIN PostTagTopic USING (postID) " \
+        "WHERE Post.postID NOT IN (SELECT postID FROM UserRead WHERE userName = '%s') AND Post.parentPostID IS NULL " \
+        "GROUP BY Post.postID ORDER BY createTime DESC" % self.username)
+    posts = self.db_cursor.fetchall()
+
+    self.db_cursor.execute('SELECT topicName, parentTopicName FROM Topic LEFT JOIN ParentTopic USING (topicName)')
+    topics = self.db_cursor.fetchall()
+
+    filtered_topics = filter(lambda x: SocialNetworkPrompt.__is_child(topic_name, 1, x[0], 0, topics), topics)
+    related_topics = map(lambda x: x[0], filtered_topics)
+    related_posts = []
+    for post in posts:
+      if post[3] is None:
+         continue
+      post_topics = post[3].split(', ')
+      if any(x for x in related_topics if x in post_topics):
+        related_posts.append(post)
+
+    return related_posts
 
   def do_logout(self, input):
     print('logging out...')
