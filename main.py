@@ -5,7 +5,6 @@ from prettytable import PrettyTable
 import MySQLdb
 import shlex
 import json
-import pdb
 import re
 
 class SocialNetworkPrompt(Cmd):
@@ -183,13 +182,12 @@ class SocialNetworkPrompt(Cmd):
       print("post %s does not exist" % args[0])
       return
 
-    self.db_cursor.execute('SELECT postID, postText, likes, disliks, parentPostID, createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR \', \') AS topics, userName ' \
+    self.db_cursor.execute('SELECT postID, postText, likes, dislikes, parentPostID, createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR \', \') AS topics, userName ' \
       'FROM Post LEFT JOIN Posting USING (postID) LEFT JOIN PostTagTopic USING(postID) GROUP BY Post.postID ORDER BY createTime DESC')
 
     posts = self.db_cursor.fetchall()
 
     related_posts = list(filter(lambda x: SocialNetworkPrompt.__is_child(int(args[0]), 4, x[0], 0, posts), posts))
-    pdb.set_trace()
     table_header = ['post id', 'content', 'likes', 'dislikes', 'reply to post', 'date', 'topics', 'user']
     SocialNetworkPrompt.__print_response(related_posts, table_header, int(args[0]), 4, 0)
 

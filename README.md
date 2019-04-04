@@ -20,9 +20,7 @@ Use docker as dependencies packaging and run the app on the container. However, 
 - Run the SQL file provided (*createTables.sql*) to add necessary database and tables for the social network app. Alternately, you can run the make command below:
 
 ``` Bash
-make database host=127.0.0.1 user=myusername password=mypassword 
-# or do it manually
-mysql -h 127.0.0.1 -u myusername -p < createTables.sql
+make database host=127.0.0.1 user=myusername password=mypassword
 ```
 
 Also, please disable ONLY_FULL_GROUP_BY mode in MySQL:
