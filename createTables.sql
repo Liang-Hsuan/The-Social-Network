@@ -1,91 +1,199 @@
-DROP DATABASE IF EXISTS TheSocialNetwork_G7;
-CREATE DATABASE TheSocialNetwork_G7;
-USE TheSocialNetwork_G7;
+DROP DATABASE IF EXISTS `TheSocialNetwork_G7`;
+CREATE DATABASE `TheSocialNetwork_G7`;
+USE `TheSocialNetwork_G7`;
 
-CREATE TABLE User(
-  userName VARCHAR(20) NOT NULL,
-  firstName VARCHAR(100) DEFAULT NULL,
-  lastName VARCHAR(100) DEFAULT NULL,
-  birthDay DATE DEFAULT NULL,
-  gender CHAR(1) DEFAULT NULL,
-  primary key (userName)
+DROP TABLE IF EXISTS `Follow`;
+
+CREATE TABLE `Follow` (
+  `followee` varchar(20) NOT NULL,
+  `follower` varchar(20) NOT NULL,
+  PRIMARY KEY (`followee`,`follower`),
+  KEY `follower` (`follower`),
+  CONSTRAINT `follow_ibfk_1` FOREIGN KEY (`followee`) REFERENCES `User` (`userName`),
+  CONSTRAINT `follow_ibfk_2` FOREIGN KEY (`follower`) REFERENCES `User` (`userName`)
 );
 
-CREATE TABLE Follow(
-  followee VARCHAR(20) NOT NULL,
-  follower VARCHAR(20) NOT NULL,
-  primary key (followee, follower),
-  foreign key (followee) references User(userName),
-  foreign key (follower) references User(userName)
+INSERT INTO `Follow` (`followee`, `follower`)
+VALUES
+	('fuduji','sosososophia');
+
+DROP TABLE IF EXISTS `Grouping`;
+
+CREATE TABLE `Grouping` (
+  `groupID` int(11) NOT NULL AUTO_INCREMENT,
+  `groupName` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`groupID`)
 );
 
-CREATE TABLE Grouping(
-  groupID INT NOT NULL AUTO_INCREMENT,
-  groupName VARCHAR(100) DEFAULT NULL,
-  primary key (groupID)
+INSERT INTO `Grouping` (`groupID`, `groupName`)
+VALUES
+	(1,'Gamers Paradise'),
+	(2,'Sports Heaven');
+
+DROP TABLE IF EXISTS `GroupMember`;
+
+CREATE TABLE `GroupMember` (
+  `userName` varchar(20) NOT NULL,
+  `groupID` int(11) NOT NULL,
+  PRIMARY KEY (`userName`,`groupID`),
+  KEY `groupID` (`groupID`),
+  CONSTRAINT `groupmember_ibfk_1` FOREIGN KEY (`userName`) REFERENCES `User` (`userName`),
+  CONSTRAINT `groupmember_ibfk_2` FOREIGN KEY (`groupID`) REFERENCES `Grouping` (`groupID`)
 );
 
-CREATE TABLE GroupMember(
-  userName VARCHAR(20) NOT NULL,
-  groupID INT NOT NULL,
-  primary key (userName, groupID),
-  foreign key (userName) references User(userName),
-  foreign key (groupID) references Grouping(groupID)
+INSERT INTO `GroupMember` (`userName`, `groupID`)
+VALUES
+	('fuduji',1),
+	('sosososophia',1);
+
+DROP TABLE IF EXISTS `ParentTopic`;
+
+CREATE TABLE `ParentTopic` (
+  `topicName` varchar(100) NOT NULL,
+  `parentTopicName` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`topicName`),
+  KEY `parentTopicName` (`parentTopicName`),
+  CONSTRAINT `parenttopic_ibfk_1` FOREIGN KEY (`topicName`) REFERENCES `Topic` (`topicName`),
+  CONSTRAINT `parenttopic_ibfk_2` FOREIGN KEY (`parentTopicName`) REFERENCES `Topic` (`topicName`)
 );
 
-CREATE TABLE Topic(
-  topicName VARCHAR(100) NOT NULL,
-  primary key (topicName)
+INSERT INTO `ParentTopic` (`topicName`, `parentTopicName`)
+VALUES
+	('Pokemon','Games'),
+	('PUBG','Games'),
+	('Baseball','Sports'),
+	('Foosball','Sports');
+
+DROP TABLE IF EXISTS `Post`;
+
+CREATE TABLE `Post` (
+  `postID` int(11) NOT NULL AUTO_INCREMENT,
+  `postText` text,
+  `postLinks` varchar(200) DEFAULT NULL,
+  `postImages` varchar(200) DEFAULT NULL,
+  `likes` int(11) DEFAULT '0',
+  `dislikes` int(11) DEFAULT '0',
+  `parentPostID` int(11) DEFAULT NULL,
+  `createTime` date NOT NULL,
+  PRIMARY KEY (`postID`)
 );
 
-CREATE TABLE ParentTopic(
-  topicName VARCHAR(100) NOT NULL,
-  parentTopicName VARCHAR(100),
-  primary key (topicName),
-  foreign key (topicName) references Topic(topicName),
-  foreign key (parentTopicName) references Topic(topicName)
+INSERT INTO `Post` (`postID`, `postText`, `postLinks`, `postImages`, `likes`, `dislikes`, `parentPostID`, `createTime`)
+VALUES
+	(1,'PUBG is the best game ever!!!!!!!',NULL,NULL,1,1,NULL,'2019-04-04'),
+	(2,' Who agree with me???',NULL,NULL,0,0,1,'2019-04-04'),
+	(3,' Like and Share ASAP!!!',NULL,NULL,0,0,2,'2019-04-04'),
+	(4,' Pokemon is the best!!!!! OK?????',NULL,NULL,0,1,2,'2019-04-04'),
+	(5,' Bullshit!!!',NULL,NULL,0,0,4,'2019-04-04'),
+	(6,'Pokemon sucks!!! Worst game ever!!!',NULL,NULL,0,1,NULL,'2019-04-04'),
+	(7,' Bullshit!!!!',NULL,NULL,0,1,6,'2019-04-04'),
+	(8,'Report by NY Times: Sleeping - Best sports ever!',NULL,NULL,2,0,NULL,'2019-04-04'),
+	(9,' Peace and Love~~~',NULL,NULL,0,0,8,'2019-04-04');
+
+DROP TABLE IF EXISTS `Posting`;
+
+CREATE TABLE `Posting` (
+  `userName` varchar(20) NOT NULL,
+  `postID` int(11) NOT NULL,
+  PRIMARY KEY (`userName`,`postID`),
+  KEY `postID` (`postID`),
+  CONSTRAINT `posting_ibfk_1` FOREIGN KEY (`userName`) REFERENCES `User` (`userName`),
+  CONSTRAINT `posting_ibfk_2` FOREIGN KEY (`postID`) REFERENCES `Post` (`postID`)
 );
 
-CREATE TABLE Post(
-  postID INT NOT NULL AUTO_INCREMENT,
-  postText TEXT,
-  postLinks VARCHAR(200) DEFAULT NULL,
-  postImages VARCHAR(200) DEFAULT NULL,
-  likes INT DEFAULT '0',
-  dislikes INT DEFAULT '0',
-  parentPostID INT DEFAULT NULL,
-  createTime DATE NOT NULL,
-  primary key (postID)
+INSERT INTO `Posting` (`userName`, `postID`)
+VALUES
+	('fuduji',1),
+	('fuduji',2),
+	('fuduji',3),
+	('sosososophia',4),
+	('fuduji',5),
+	('fuduji',6),
+	('sosososophia',7),
+	('fuduji',8),
+	('sosososophia',9);
+
+DROP TABLE IF EXISTS `PostTagTopic`;
+
+CREATE TABLE `PostTagTopic` (
+  `postID` int(11) NOT NULL,
+  `topicName` varchar(100) NOT NULL,
+  PRIMARY KEY (`postID`,`topicName`),
+  KEY `topicName` (`topicName`),
+  CONSTRAINT `posttagtopic_ibfk_1` FOREIGN KEY (`postID`) REFERENCES `Post` (`postID`),
+  CONSTRAINT `posttagtopic_ibfk_2` FOREIGN KEY (`topicName`) REFERENCES `Topic` (`topicName`)
 );
 
-CREATE TABLE PostTagTopic(
-  postID INT NOT NULL,
-  topicName VARCHAR(100) NOT NULL,
-  primary key (postID, topicName),
-  foreign key (postID) references Post(postID),
-  foreign key (topicName) references Topic(topicName)
+INSERT INTO `PostTagTopic` (`postID`, `topicName`)
+VALUES
+	(1,'Games'),
+	(6,'Pokemon'),
+	(1,'PUBG'),
+	(8,'Sports');
+
+DROP TABLE IF EXISTS `Topic`;
+
+CREATE TABLE `Topic` (
+  `topicName` varchar(100) NOT NULL,
+  PRIMARY KEY (`topicName`)
 );
 
-CREATE TABLE Posting(
-  userName VARCHAR(20) NOT NULL,
-  postID INT NOT NULL,
-  primary key (userName, postID),
-  foreign key (userName) references User(userName),
-  foreign key (postID) references Post(postID)
+INSERT INTO `Topic` (`topicName`)
+VALUES
+	('Baseball'),
+	('Foosball'),
+	('Games'),
+	('Pokemon'),
+	('PUBG'),
+	('Sports');
+
+DROP TABLE IF EXISTS `User`;
+
+CREATE TABLE `User` (
+  `userName` varchar(20) NOT NULL,
+  `firstName` varchar(100) DEFAULT NULL,
+  `lastName` varchar(100) DEFAULT NULL,
+  `birthDay` date DEFAULT NULL,
+  `gender` char(1) DEFAULT NULL,
+  PRIMARY KEY (`userName`)
 );
 
-CREATE TABLE UserFollowTopic(
-  userName VARCHAR(20) NOT NULL,
-  topicName VARCHAR(100) NOT NULL,
-  primary key (userName, topicName),
-  foreign key (userName) references User(userName),
-  foreign key (topicName) references Topic(topicName)
+INSERT INTO `User` (`userName`, `firstName`, `lastName`, `birthDay`, `gender`)
+VALUES
+	('fuduji','Fudu','Jun','2000-01-01','m'),
+	('sosososophia','Sophia','Liu','2000-04-01','f');
+
+DROP TABLE IF EXISTS `UserFollowTopic`;
+
+CREATE TABLE `UserFollowTopic` (
+  `userName` varchar(20) NOT NULL,
+  `topicName` varchar(100) NOT NULL,
+  PRIMARY KEY (`userName`,`topicName`),
+  KEY `topicName` (`topicName`),
+  CONSTRAINT `userfollowtopic_ibfk_1` FOREIGN KEY (`userName`) REFERENCES `User` (`userName`),
+  CONSTRAINT `userfollowtopic_ibfk_2` FOREIGN KEY (`topicName`) REFERENCES `Topic` (`topicName`)
 );
 
-CREATE TABLE UserRead(
-  userName VARCHAR(20) NOT NULL,
-  postID INT NOT NULL,
-  primary key (userName, postID),
-  foreign key (userName) references User(userName),
-  foreign key (postID) references Post(postID)
+INSERT INTO `UserFollowTopic` (`userName`, `topicName`)
+VALUES
+	('fuduji','Games'),
+	('sosososophia','Games');
+
+DROP TABLE IF EXISTS `UserRead`;
+
+CREATE TABLE `UserRead` (
+  `userName` varchar(20) NOT NULL,
+  `postID` int(11) NOT NULL,
+  PRIMARY KEY (`userName`,`postID`),
+  KEY `postID` (`postID`),
+  CONSTRAINT `userread_ibfk_1` FOREIGN KEY (`userName`) REFERENCES `User` (`userName`),
+  CONSTRAINT `userread_ibfk_2` FOREIGN KEY (`postID`) REFERENCES `Post` (`postID`)
 );
+
+INSERT INTO `UserRead` (`userName`, `postID`)
+VALUES
+	('fuduji',1),
+	('sosososophia',1),
+	('fuduji',6),
+	('sosososophia',6),
+	('sosososophia',8);
