@@ -3,7 +3,7 @@ install:
 	pip install PrettyTable
 
 database:
-	mysql -u $(user) -h $(host) -p < createTables.sql && $(password)
+	mysql -u $(user) -h $(host) -p < createTables.sql
 	source ./build_secret.sh $(host) $(user) $(password)
 
 run:
