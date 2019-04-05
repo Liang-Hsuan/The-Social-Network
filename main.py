@@ -138,7 +138,7 @@ class SocialNetworkPrompt(Cmd):
     print("post '%s' created successfully" % args[0])
 
   def help_post(self):
-    print('post [content ("" if has space] [topics (separated by , and "" if has space)]\n' \
+    print('post [content ("" if has space)] [topics (separated by comma; "" if has space)]\n' \
       'submit a post with given text content and topic(s)')
 
   def do_reply(self, input):
@@ -167,7 +167,7 @@ class SocialNetworkPrompt(Cmd):
 
   def help_reply(self):
     print('reply [post_id] [content ("" if has space)]\n' \
-      'reply a response to a post with given post id and content text')
+      'reply a response to a post with given post ID and content text')
 
   def do_like(self, input):
     args = shlex.split(input)
@@ -367,7 +367,7 @@ class SocialNetworkPrompt(Cmd):
       print("flag %s not available" % args[0])
 
   def help_follow(self):
-    print('follow [-u | -t] [username | topic]\n' \
+    print('follow [-u | -t] [username | topic_name]\n' \
       'follow a user or a topic')
 
   def do_unfollow(self, input):
@@ -417,7 +417,7 @@ class SocialNetworkPrompt(Cmd):
       print("flag %s not available" % args[0])
 
   def help_unfollow(self):
-    print('unfollow [-u | -t] [username | topic]\n' \
+    print('unfollow [-u | -t] [username | topic_name]\n' \
       'unfollow a user or a topic')
 
   def do_group(self, input):
@@ -531,12 +531,12 @@ class SocialNetworkPrompt(Cmd):
       print(t)
 
     elif args[0] == '-g':
-      query = ("SELECT groupID, groupName FROM Grouping JOIN GroupMember USING (groupID) WHERE userName = '%s'" % self.username) if has_only_followed_flag \
-        else 'SELECT groupID, groupName FROM Grouping'
+      query = ("SELECT groupID, groupName, COUNT(userName) AS members FROM Grouping INNER JOIN GroupMember USING (groupID) WHERE userName = '%s' GROUP BY groupID" % self.username) if has_only_followed_flag \
+        else 'SELECT groupID, groupName, COUNT(userName) AS members FROM Grouping LEFT JOIN GroupMember USING (groupID) GROUP BY groupID'
       self.db_cursor.execute(query)
       groups = self.db_cursor.fetchall()
 
-      t = PrettyTable(['Group ID', 'Group Name'])
+      t = PrettyTable(['Group ID', 'Group Name', 'Members Number'])
       for group in groups:
         t.add_row(group)
 
@@ -548,7 +548,8 @@ class SocialNetworkPrompt(Cmd):
   def help_list(self):
     print('list [-p | -t | -u | -g] [--followed (optional)]\n' \
       'list all the posts or topics or users or groups\n' \
-      'list all the posts or topics or users or groups followed by the user if --followed flag is provided')
+      'if --followed flag is provided then only show the followed posts or topics or users or groups\n' \
+      'followed posts will show all the posts from the users or contain the topics you follow')
 
   def do_show(self, input):
     args = shlex.split(input)
@@ -595,8 +596,9 @@ class SocialNetworkPrompt(Cmd):
       print("flag %s not available" % args[0])
 
   def help_show(self):
-    print('show [-u | -t] [username]\n' \
-      'show all the unread posts from followed user or topic')
+    print('show [-u | -t] [username | topic_name] [--unread (optional)]\n' \
+      'show all the new posts from followed user or topic since last read\n' \
+      'if --unread flag is provided then show all the unread posts from followed user or topic')
 
   def __get_posts_from_topic(self, topic_name):
     self.db_cursor.execute("SELECT Post.postID, Post.postText, Post.createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR ', ') AS topics, userName FROM Post " \
