@@ -1,5 +1,5 @@
 from cmd import Cmd
-from datetime import date
+from datetime import datetime
 from prettytable import PrettyTable
 
 import MySQLdb
@@ -122,7 +122,7 @@ class SocialNetworkPrompt(Cmd):
         return
 
     try:
-      self.db_cursor.execute("INSERT INTO Post(postText, createTime) VALUES ('%s', '%s')" % (args[0], str(date.today())))
+      self.db_cursor.execute("INSERT INTO Post(postText, createTime) VALUES ('%s', '%s')" % (args[0], datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
       self.db_cursor.execute("INSERT INTO Posting(postID, userName) VALUES ((SELECT LAST_INSERT_ID()), '%s')" % self.username)
 
       if has_topics:
@@ -155,7 +155,7 @@ class SocialNetworkPrompt(Cmd):
       return
 
     try:
-      self.db_cursor.execute("INSERT INTO Post(parentPostID, postText, createTime) VALUES ('%s',' %s', '%s')" % (args[0], args[1], str(date.today())))
+      self.db_cursor.execute("INSERT INTO Post(parentPostID, postText, createTime) VALUES ('%s',' %s', '%s')" % (args[0], args[1], datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
       self.db_cursor.execute("INSERT INTO Posting(postID, userName) VALUES ((SELECT LAST_INSERT_ID()), '%s')" % self.username)
       self.db.commit()
     except (MySQLdb.Error, MySQLdb.Warning) as e:
@@ -242,13 +242,21 @@ class SocialNetworkPrompt(Cmd):
     posts = self.db_cursor.fetchall()
 
     related_posts = list(filter(lambda x: SocialNetworkPrompt.__is_child(int(args[0]), 4, x[0], 0, posts), posts))
-    table_header = ['post id', 'content', 'likes', 'dislikes', 'reply to post', 'date', 'topics', 'user']
+    table_header = ['post id', 'content', 'likes', 'dislikes', 'reply to post', 'time', 'topics', 'user']
     SocialNetworkPrompt.__print_response(related_posts, table_header, int(args[0]), 4, 0)
 
     self.db_cursor.execute("SELECT * FROM UserRead WHERE userName = '%s' AND postID = %s" % (self.username, args[0]))
     if self.db_cursor.rowcount == 0:
       try:
-        self.db_cursor.execute("INSERT INTO UserRead(userName, postID) VALUES ('%s', %s)" % (self.username, args[0]))
+        self.db_cursor.execute("INSERT INTO UserRead(userName, postID, readTime) VALUES ('%s', %s, '%s')" % (self.username, args[0], datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+        self.db.commit()
+      except (MySQLdb.Error, MySQLdb.Warning) as e:
+        self.db.rollback()
+        print("error while reading post: %s, please try again" % e)
+        return
+    else:
+      try:
+        self.db_cursor.execute("UPDATE UserRead SET readTime = '%s' WHERE userName = '%s' AND postID = %s" % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), self.username, args[0]))
         self.db.commit()
       except (MySQLdb.Error, MySQLdb.Warning) as e:
         self.db.rollback()
@@ -481,7 +489,6 @@ class SocialNetworkPrompt(Cmd):
       query = ("SELECT postID, postText, createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR ', ') AS topics, userName FROM Post " \
         "INNER JOIN Posting USING (postID) " \
         "LEFT JOIN PostTagTopic USING (postID) " \
-        "INNER JOIN Follow ON Posting.userName = Follow.followee " \
         "WHERE parentPostID IS NULL AND Posting.userName IN (SELECT followee FROM Follow WHERE follower = '%s') " \
         "GROUP BY Post.postID ORDER BY createTime DESC" % self.username) if has_only_followed_flag \
       else 'SELECT postID, postText, createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR \', \') AS topics, userName FROM Post ' \
@@ -500,15 +507,15 @@ class SocialNetworkPrompt(Cmd):
           posts_with_topic = self.__get_posts_from_topic(topic[0])
           posts.update(posts_with_topic)
 
-      t = PrettyTable(['post id', 'content', 'date', 'topics', 'user'])
+      t = PrettyTable(['post id', 'content', 'time', 'topics', 'user'])
       for post in posts:
         t.add_row(post)
 
       print(t)
 
     elif args[0] == '-t':
-      query = ("SELECT topicName, parentTopicName FROM UserFollowTopic LEFT JOIN ParentTopic USING (topicName) where userName = '%s'" % self.username) if has_only_followed_flag \
-        else 'SELECT topicName, parentTopicName FROM Topic LEFT JOIN ParentTopic USING (topicName)'
+      query = ("SELECT topicName, parentTopicName FROM UserFollowTopic LEFT JOIN ParentTopic USING (topicName) WHERE userName = '%s' ORDER BY parentTopicName" % self.username) if has_only_followed_flag \
+        else 'SELECT topicName, parentTopicName FROM Topic LEFT JOIN ParentTopic USING (topicName) ORDER BY parentTopicName'
       self.db_cursor.execute(query)
       topics = self.db_cursor.fetchall()
 
@@ -531,7 +538,7 @@ class SocialNetworkPrompt(Cmd):
       print(t)
 
     elif args[0] == '-g':
-      query = ("SELECT groupID, groupName, COUNT(userName) AS members FROM Grouping INNER JOIN GroupMember USING (groupID) WHERE userName = '%s' GROUP BY groupID" % self.username) if has_only_followed_flag \
+      query = ("SELECT groupID, groupName, COUNT(userName) AS members FROM Grouping INNER JOIN GroupMember USING (groupID) WHERE groupID IN (SELECT groupID FROM Grouping INNER JOIN GroupMember USING (groupID) WHERE username = '%s') GROUP BY groupID" % self.username) if has_only_followed_flag \
         else 'SELECT groupID, groupName, COUNT(userName) AS members FROM Grouping LEFT JOIN GroupMember USING (groupID) GROUP BY groupID'
       self.db_cursor.execute(query)
       groups = self.db_cursor.fetchall()
@@ -549,14 +556,17 @@ class SocialNetworkPrompt(Cmd):
     print('list [-p | -t | -u | -g] [--followed (optional)]\n' \
       'list all the posts or topics or users or groups\n' \
       'if --followed flag is provided then only show the followed posts or topics or users or groups\n' \
-      'followed posts will show all the posts from the users or contain the topics you follow')
+      'followed posts will show all the posts from the users or contain the topics you follow\n' \
+      'posts tagged with the child topic(s) from your followed topic(s) will also be shown')
 
   def do_show(self, input):
     args = shlex.split(input)
 
-    if len(args) != 2:
-      print("number or arguments should be 2, %d given" % len(args))
+    if not (1 < len(args) < 4):
+      print("number or arguments should be 2 or 3, %d given" % len(args))
       return
+
+    has_unread_flag = (len(args) == 3) and args[2] == '--unread'
 
     if args[0] == '-u':
       self.db_cursor.execute("SELECT * FROM Follow WHERE followee = '%s' and follower = '%s'" % (args[1], self.username))
@@ -565,14 +575,32 @@ class SocialNetworkPrompt(Cmd):
         print("you did not follow user %s" % args[1])
         return
 
-      self.db_cursor.execute("SELECT Post.postID, Post.postText, Post.createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR ', ') AS topics, userName FROM Post " \
+      if has_unread_flag:
+        query = ("SELECT Post.postID, Post.postText, Post.createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR ', ') AS topics, userName FROM Post " \
         "INNER JOIN Posting USING (postID) " \
         "LEFT JOIN PostTagTopic USING (postID) " \
         "WHERE Posting.userName = '%s' AND Post.postID NOT IN (SELECT postID FROM UserRead WHERE userName = '%s') AND Post.parentPostID IS NULL " \
-        "ORDER BY createTime DESC" % (args[1], self.username))
+        "GROUP BY Post.postID ORDER BY createTime DESC" % (args[1], self.username))
+      else:
+        self.db_cursor.execute("SELECT MAX(UserRead.readTime) FROM UserRead JOIN Post USING (postID) JOIN Posting USING (postID) WHERE UserRead.userName = '%s' and Posting.userName = '%s'" % (self.username, args[1]))
+        read_time = self.db_cursor.fetchone()
+
+        query = ("SELECT Post.postID, Post.postText, Post.createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR ', ') AS topics, userName FROM Post " \
+          "INNER JOIN Posting USING (postID) " \
+          "LEFT JOIN PostTagTopic USING (postID) " \
+          "WHERE Posting.userName = '%s' AND Post.parentPostID IS NULL " \
+          "GROUP BY Post.postID ORDER BY createTime DESC" % args[1]) if read_time[0] is None \
+        else ("SELECT Post.postID, Post.postText, Post.createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR ', ') AS topics, userName FROM Post " \
+          "INNER JOIN Posting USING (postID) " \
+          "LEFT JOIN PostTagTopic USING (postID) " \
+          "WHERE Posting.userName = '%s' AND Post.parentPostID IS NULL AND Post.createTime > " \
+          "(SELECT MAX(UserRead.readTime) FROM UserRead JOIN Post ON UserRead.postID = Post.postID JOIN Posting ON UserRead.postID = Posting.postID WHERE UserRead.userName = '%s' and Posting.userName = '%s') " \
+          "GROUP BY Post.postID ORDER BY createTime DESC" % (args[1], self.username, args[1]))
+
+      self.db_cursor.execute(query)
       posts = self.db_cursor.fetchall()
 
-      t = PrettyTable(['post id', 'content', 'date', 'topics', 'user'])
+      t = PrettyTable(['post id', 'content', 'time', 'topics', 'user'])
       for post in posts:
         t.add_row(post)
 
@@ -585,9 +613,9 @@ class SocialNetworkPrompt(Cmd):
         print("you did not follow topic %s" % args[1])
         return
 
-      posts = self.__get_posts_from_topic(args[1])
+      posts = self.__get_posts_from_topic(args[1], 'unread' if has_unread_flag else 'last')
 
-      t = PrettyTable(['post id', 'content', 'date', 'topics', 'user'])
+      t = PrettyTable(['post id', 'content', 'time', 'topics', 'user'])
       for post in posts:
         t.add_row(post)
 
@@ -597,15 +625,23 @@ class SocialNetworkPrompt(Cmd):
 
   def help_show(self):
     print('show [-u | -t] [username | topic_name] [--unread (optional)]\n' \
-      'show all the new posts from followed user or topic since last read\n' \
-      'if --unread flag is provided then show all the unread posts from followed user or topic')
+      'show all the new posts from followed user or topic since last read from the user or topic\n' \
+      'if --unread flag is provided then show all the unread posts from followed user or topic\n' \
+      'posts tagged with the child topic(s) from the given topic will also be shown')
 
-  def __get_posts_from_topic(self, topic_name):
-    self.db_cursor.execute("SELECT Post.postID, Post.postText, Post.createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR ', ') AS topics, userName FROM Post " \
-        "INNER JOIN Posting USING (postID) " \
-        "LEFT JOIN PostTagTopic USING (postID) " \
-        "WHERE Post.postID NOT IN (SELECT postID FROM UserRead WHERE userName = '%s') AND Post.parentPostID IS NULL " \
-        "GROUP BY Post.postID ORDER BY createTime DESC" % self.username)
+  def __get_posts_from_topic(self, topic_name, mode = ''):
+    query = ("SELECT Post.postID, Post.postText, Post.createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR ', ') AS topics, userName FROM Post " \
+      "INNER JOIN Posting USING (postID) " \
+      "LEFT JOIN PostTagTopic USING (postID) " \
+      "WHERE Post.postID NOT IN (SELECT postID FROM UserRead WHERE userName = '%s') AND Post.parentPostID IS NULL " \
+      "GROUP BY Post.postID ORDER BY createTime DESC" % self.username) if (mode == 'unread') \
+    else ('SELECT Post.postID, Post.postText, Post.createTime, GROUP_CONCAT(PostTagTopic.topicName SEPARATOR \', \') AS topics, userName FROM Post ' \
+      'INNER JOIN Posting USING (postID) ' \
+      'LEFT JOIN PostTagTopic USING (postID) ' \
+      'WHERE Post.parentPostID IS NULL ' \
+      'GROUP BY Post.postID ORDER BY createTime DESC')
+
+    self.db_cursor.execute(query)
     posts = self.db_cursor.fetchall()
 
     self.db_cursor.execute('SELECT topicName, parentTopicName FROM Topic LEFT JOIN ParentTopic USING (topicName)')
@@ -613,6 +649,7 @@ class SocialNetworkPrompt(Cmd):
 
     filtered_topics = filter(lambda x: SocialNetworkPrompt.__is_child(topic_name, 1, x[0], 0, topics), topics)
     related_topics = map(lambda x: x[0], filtered_topics)
+
     related_posts = []
     for post in posts:
       if post[3] is None:
@@ -620,6 +657,13 @@ class SocialNetworkPrompt(Cmd):
       post_topics = post[3].split(', ')
       if any(x for x in related_topics if x in post_topics):
         related_posts.append(post)
+
+    if mode == 'last':
+      self.db_cursor.execute("SELECT MAX(readTime) FROM Post INNER JOIN UserRead USING (postID) INNER JOIN PostTagTopic USING (postID) WHERE userName = '%s' AND topicName = '%s'" % (self.username, topic_name))
+      time = self.db_cursor.fetchone()
+
+      if time[0] is not None:
+        related_posts = filter(lambda x: x[2] > time[0], related_posts)
 
     return related_posts
 

@@ -141,6 +141,7 @@ dislike 33
 list all the posts or topics or users or groups
 if `--followed` flag is provided then only show the followed posts or topics or users or groups
 followed posts will show all the posts from the users or contain the topics you follow
+posts tagged with the child topic(s) from your followed topic(s) will also be shown
 
 ``` Bash
 # list [-p | -t | -u | -g] [--followed (optional)]
@@ -156,8 +157,9 @@ list -g --followed
 
 **show**
 
-show all the new posts from followed user or topic since last read
+show all the new posts from followed user or topic since last read from the user or topic
 if `--unread` flag is provided then show all the unread posts from followed user or topic
+posts tagged with the child topic(s) from the given topic will also be shown
 
 ``` Bash
 # show [-u | -t] [username | topic_name] [--unread (optional)]
