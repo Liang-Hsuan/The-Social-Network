@@ -2,6 +2,22 @@ DROP DATABASE IF EXISTS `TheSocialNetwork_G7`;
 CREATE DATABASE `TheSocialNetwork_G7`;
 USE `TheSocialNetwork_G7`;
 
+DROP TABLE IF EXISTS `User`;
+
+CREATE TABLE `User` (
+  `userName` varchar(20) NOT NULL,
+  `firstName` varchar(100) DEFAULT NULL,
+  `lastName` varchar(100) DEFAULT NULL,
+  `birthDay` date DEFAULT NULL,
+  `gender` char(1) DEFAULT NULL,
+  PRIMARY KEY (`userName`)
+);
+
+INSERT INTO `User` (`userName`, `firstName`, `lastName`, `birthDay`, `gender`)
+VALUES
+	('fuduji','Fudu','Jun','2000-01-01','m'),
+	('sosososophia','Sophia','Liu','2000-04-01','f');
+
 DROP TABLE IF EXISTS `Follow`;
 
 CREATE TABLE `Follow` (
@@ -46,6 +62,22 @@ VALUES
 	('fuduji',1),
 	('sosososophia',1);
 
+DROP TABLE IF EXISTS `Topic`;
+
+CREATE TABLE `Topic` (
+  `topicName` varchar(100) NOT NULL,
+  PRIMARY KEY (`topicName`)
+);
+
+INSERT INTO `Topic` (`topicName`)
+VALUES
+	('Baseball'),
+	('Foosball'),
+	('Games'),
+	('Pokemon'),
+	('PUBG'),
+	('Sports');
+
 DROP TABLE IF EXISTS `ParentTopic`;
 
 CREATE TABLE `ParentTopic` (
@@ -74,21 +106,21 @@ CREATE TABLE `Post` (
   `likes` int(11) DEFAULT '0',
   `dislikes` int(11) DEFAULT '0',
   `parentPostID` int(11) DEFAULT NULL,
-  `createTime` date NOT NULL,
+  `createTime` datetime NOT NULL,
   PRIMARY KEY (`postID`)
 );
 
 INSERT INTO `Post` (`postID`, `postText`, `postLinks`, `postImages`, `likes`, `dislikes`, `parentPostID`, `createTime`)
 VALUES
-	(1,'PUBG is the best game ever!!!!!!!',NULL,NULL,1,1,NULL,'2019-04-04'),
-	(2,' Who agree with me???',NULL,NULL,0,0,1,'2019-04-04'),
-	(3,' Like and Share ASAP!!!',NULL,NULL,0,0,2,'2019-04-04'),
-	(4,' Pokemon is the best!!!!! OK?????',NULL,NULL,0,1,2,'2019-04-04'),
-	(5,' Bullshit!!!',NULL,NULL,0,0,4,'2019-04-04'),
-	(6,'Pokemon sucks!!! Worst game ever!!!',NULL,NULL,0,1,NULL,'2019-04-04'),
-	(7,' Bullshit!!!!',NULL,NULL,0,1,6,'2019-04-04'),
-	(8,'Report by NY Times: Sleeping - Best sports ever!',NULL,NULL,2,0,NULL,'2019-04-04'),
-	(9,' Peace and Love~~~',NULL,NULL,0,0,8,'2019-04-04');
+	(1,'PUBG is the best game ever!!!!!!!',NULL,NULL,1,1,NULL,'2019-04-04 16:01:01'),
+	(2,' Who agree with me???',NULL,NULL,0,0,1,'2019-04-04 16:04:01'),
+	(3,' Like and Share ASAP!!!',NULL,NULL,0,0,2,'2019-04-04 16:10:01'),
+	(4,' Pokemon is the best!!!!! OK?????',NULL,NULL,0,1,2,'2019-04-04 16:15:01'),
+	(5,' Bullshit!!!',NULL,NULL,0,0,4,'2019-04-04 16:16:01'),
+	(6,'Pokemon sucks!!! Worst game ever!!!',NULL,NULL,0,1,NULL,'2019-04-04 16:20:01'),
+	(7,' Bullshit!!!!',NULL,NULL,0,1,6,'2019-04-04 16:21:01'),
+	(8,'Report by NY Times: Sleeping - Best sports ever!',NULL,NULL,2,0,NULL,'2019-04-04 16:25:01'),
+	(9,' Peace and Love~~~',NULL,NULL,0,0,8,'2019-04-04 16:30:01');
 
 DROP TABLE IF EXISTS `Posting`;
 
@@ -131,38 +163,6 @@ VALUES
 	(1,'PUBG'),
 	(8,'Sports');
 
-DROP TABLE IF EXISTS `Topic`;
-
-CREATE TABLE `Topic` (
-  `topicName` varchar(100) NOT NULL,
-  PRIMARY KEY (`topicName`)
-);
-
-INSERT INTO `Topic` (`topicName`)
-VALUES
-	('Baseball'),
-	('Foosball'),
-	('Games'),
-	('Pokemon'),
-	('PUBG'),
-	('Sports');
-
-DROP TABLE IF EXISTS `User`;
-
-CREATE TABLE `User` (
-  `userName` varchar(20) NOT NULL,
-  `firstName` varchar(100) DEFAULT NULL,
-  `lastName` varchar(100) DEFAULT NULL,
-  `birthDay` date DEFAULT NULL,
-  `gender` char(1) DEFAULT NULL,
-  PRIMARY KEY (`userName`)
-);
-
-INSERT INTO `User` (`userName`, `firstName`, `lastName`, `birthDay`, `gender`)
-VALUES
-	('fuduji','Fudu','Jun','2000-01-01','m'),
-	('sosososophia','Sophia','Liu','2000-04-01','f');
-
 DROP TABLE IF EXISTS `UserFollowTopic`;
 
 CREATE TABLE `UserFollowTopic` (
@@ -184,16 +184,17 @@ DROP TABLE IF EXISTS `UserRead`;
 CREATE TABLE `UserRead` (
   `userName` varchar(20) NOT NULL,
   `postID` int(11) NOT NULL,
+  `readTime` datetime NOT NULL,
   PRIMARY KEY (`userName`,`postID`),
   KEY `postID` (`postID`),
   CONSTRAINT `userread_ibfk_1` FOREIGN KEY (`userName`) REFERENCES `User` (`userName`),
   CONSTRAINT `userread_ibfk_2` FOREIGN KEY (`postID`) REFERENCES `Post` (`postID`)
 );
 
-INSERT INTO `UserRead` (`userName`, `postID`)
+INSERT INTO `UserRead` (`userName`, `postID`, `readTime`)
 VALUES
-	('fuduji',1),
-	('sosososophia',1),
-	('fuduji',6),
-	('sosososophia',6),
-	('sosososophia',8);
+	('fuduji',1,'2019-04-04 16:02:01'),
+	('sosososophia',1,'2019-04-04 16:04:01'),
+	('fuduji',6,'2019-04-04 16:21:01'),
+	('sosososophia',6,'2019-04-04 16:20:30'),
+	('sosososophia',8,'2019-04-04 16:26:01');
